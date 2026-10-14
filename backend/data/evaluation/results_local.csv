@@ -1,0 +1,6 @@
+run_id,case_id,expected,observed,retrieval_hit,citation_correct,future_leak,latency_ms,input_tokens,output_tokens,estimated_cost_usd,notes
+sample-local,past_supported,answer_with_video_citation,answer_with_video_citation,True,True,False,0.54,,,,future_match=False; retrieved=3
+sample-local,future_refusal,future_content_refusal,future_content_refusal,False,False,False,0.32,,,,future_match=True; retrieved=0
+sample-local,document_supported,answer_with_document_citation,answer_with_document_citation,True,True,False,0.2,,,,future_match=False; retrieved=1
+sample-local,unsupported_refusal,unsupported_refusal,unsupported_refusal,False,False,False,0.31,,,,future_match=False; retrieved=0
+sample-local,timestamp_boundary,boundary_chunk_available_only_at_end_time,boundary_chunk_available_only_at_end_time,True,True,False,0.4,,,,future_match=False; retrieved=1
