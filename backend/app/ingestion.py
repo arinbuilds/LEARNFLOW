@@ -10,6 +10,7 @@ from .domain import Chunk
 from .embeddings import EmbeddingProvider
 
 TIMESTAMP = re.compile(r"(?P<h>\d{2}):(?P<m>\d{2}):(?P<s>\d{2})[,.](?P<ms>\d{3})")
+INLINE_TIMESTAMP = re.compile(r"\[(?P<time>\d{1,2}:\d{2}:\d{2})\]\s*")
 
 
 def seconds_from_timestamp(value: str) -> int:
@@ -38,7 +39,24 @@ def parse_transcript(text: str) -> list[dict[str, Any]]:
                 segments.extend(parsed if isinstance(parsed, list) else parsed.get("segments", []))
             except json.JSONDecodeError:
                 continue
+    if not segments:
+        # Some transcript exports flatten every cue onto one line as
+        # `[00:00:03] words [00:00:07] more words` instead of valid VTT/SRT.
+        # Recover each cue and use the next cue's start as its exclusive end.
+        markers = list(INLINE_TIMESTAMP.finditer(text))
+        for index, marker in enumerate(markers):
+            start = _seconds_from_clock(marker["time"])
+            end = _seconds_from_clock(markers[index + 1]["time"]) if index + 1 < len(markers) else start + 5
+            content = text[marker.end():markers[index + 1].start() if index + 1 < len(markers) else len(text)]
+            content = re.sub(r"\s+", " ", content).strip()
+            if content and end > start:
+                segments.append({"start": start, "end": end, "text": content})
     return segments
+
+
+def _seconds_from_clock(value: str) -> int:
+    hours, minutes, seconds = (int(part) for part in value.split(":"))
+    return hours * 3600 + minutes * 60 + seconds
 
 
 def _split_text(text: str, max_chars: int = 1100) -> list[str]:
@@ -75,6 +93,12 @@ def parse_document(filename: str, raw: bytes) -> tuple[str, list[dict[str, Any]]
             else:
                 raise ValueError("No timestamped transcript cues found. Use WebVTT, SRT, or JSON segments.")
         return "video", segments
+    if suffix in {".txt", ".md", ".markdown", ".rst"}:
+        text = raw.decode("utf-8-sig", errors="replace")
+        segments = parse_transcript(text)
+        if segments:
+            return "video", segments
+        return "notes", [{"text": text}]
     if suffix == ".pdf":
         from pypdf import PdfReader
         import io
@@ -90,8 +114,6 @@ def parse_document(filename: str, raw: bytes) -> tuple[str, list[dict[str, Any]]
             {"text": "\n".join(shape.text for shape in slide.shapes if getattr(shape, "has_text_frame", False) and shape.text.strip()), "slide_number": index + 1}
             for index, slide in enumerate(deck.slides)
         ]
-    if suffix in {".txt", ".md", ".markdown", ".rst"}:
-        return "notes", [{"text": raw.decode("utf-8-sig", errors="replace")}]
     raise ValueError("Supported files: VTT, SRT, JSON transcript, PDF, PPTX, TXT, Markdown.")
 
 

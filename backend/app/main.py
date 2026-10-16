@@ -43,6 +43,10 @@ class YouTubeInput(BaseModel):
     url: str = Field(min_length=10, max_length=2048)
 
 
+class TranscriptTextInput(BaseModel):
+    text: str = Field(min_length=20, max_length=100_000)
+
+
 class SessionInput(BaseModel):
     course_id: str
 
@@ -268,6 +272,23 @@ async def ingest_resource(course_id: str, file: UploadFile = File(...), store=De
     except Exception as exc:
         logger.exception("Ingestion failed for resource=%s", filename)
         raise HTTPException(status_code=422, detail="The file could not be extracted. Check its format and contents.") from exc
+
+
+@app.post("/api/v1/courses/{course_id}/transcripts", status_code=201)
+async def ingest_pasted_transcript(course_id: str, payload: TranscriptTextInput, store=Depends(ready_store)):
+    if not await store.get_course(course_id):
+        raise HTTPException(status_code=404, detail="Course not found")
+    try:
+        source_type, segments = await run_in_threadpool(parse_document, "pasted-transcript.txt", payload.text.encode("utf-8"))
+        if source_type != "video":
+            raise ValueError("No timestamps found. Include times such as [00:00:00] before each caption.")
+        chunks = await make_chunks(course_id, "", "Pasted video transcript", "video", segments, state.embedder)
+        return await store.add_resource(course_id, "Pasted video transcript", "video", chunks)
+    except (ValueError, UnicodeError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.exception("Pasted transcript ingestion failed for course=%s", course_id)
+        raise HTTPException(status_code=422, detail="The transcript could not be processed. Check its timestamp format and try again.") from exc
 
 
 @app.post("/api/v1/learning/sessions", status_code=201)

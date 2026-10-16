@@ -37,6 +37,7 @@ export default function Assistant() {
   const [videoDraft, setVideoDraft] = useState(videoUrl);
   const [videoDuration, setVideoDuration] = useState(2040);
   const [newCourseTitle, setNewCourseTitle] = useState("");
+  const [transcriptText, setTranscriptText] = useState("");
   const [importing, setImporting] = useState(false);
   const [captionStatus, setCaptionStatus] = useState("");
   const [demoMode, setDemoMode] = useState(false);
@@ -216,6 +217,21 @@ export default function Assistant() {
     }
   }
 
+  async function addPastedTranscript(event: FormEvent) {
+    event.preventDefault();
+    if (!courseId || !transcriptText.trim() || loading) return;
+    setLoading(true);
+    try {
+      const result = await api<{ name: string; chunk_count: number }>(`v1/courses/${courseId}/transcripts`, {
+        method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ text: transcriptText }),
+      });
+      setNotice(`Added ${result.name} as ${result.chunk_count} timestamped passages. Ask again at the video position you want to review.`);
+      setTranscriptText("");
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Could not add the transcript.");
+    } finally { setLoading(false); }
+  }
+
   async function beginInterview(event: FormEvent) {
     event.preventDefault();
     setLoading(true);
@@ -321,6 +337,7 @@ export default function Assistant() {
             <p className="muted">Add a PDF, presentation, transcript, or notes. Page and slide numbers stay attached to their citations.</p>
             <form className="new-course-form" onSubmit={createCourse}><input aria-label="New course title" value={newCourseTitle} onChange={(event) => setNewCourseTitle(event.target.value)} placeholder={videoUrl && !courseId ? "Name this video lesson to add its transcript" : "New lesson or course name"} minLength={2} maxLength={160} required /><button className="button-secondary" disabled={loading || importing || newCourseTitle.trim().length < 2}>{videoUrl && !courseId ? "Create lesson for this video" : "Create course"}</button></form>
             <form className="upload-row" onSubmit={uploadResource}><input type="file" accept=".pdf,.pptx,.vtt,.srt,.json,.txt,.md,.markdown" onChange={(event) => setFile(event.target.files?.[0] || null)} /><button className="button-secondary" disabled={!file || !courseId || loading || importing}>Add resource <span>↗</span></button></form>
+            <form className="transcript-form" onSubmit={addPastedTranscript}><label htmlFor="pasted-transcript">Or paste timestamped captions</label><textarea id="pasted-transcript" rows={4} value={transcriptText} onChange={(event) => setTranscriptText(event.target.value)} placeholder={'Paste captions with timestamps, e.g. [00:00:00] First sentence [00:00:04] Next sentence…'} maxLength={100000} /><p>Keep the timestamps in the text. Learnflow will split them into video passages and cite their times.</p><button className="button-secondary" disabled={!courseId || !transcriptText.trim() || loading || importing}>{loading ? "Adding transcript…" : "Add transcript"}</button></form>
           </div>
         </div>
 

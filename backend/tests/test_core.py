@@ -73,6 +73,18 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(cues[0]["text"], "A timestamped cue.")
         self.assertEqual(seconds_from_timestamp("00:01:02,000"), 62)
 
+    def test_flattened_youtube_caption_export_keeps_clean_cues_and_time_bounds(self):
+        kind, cues = parse_document(
+            "transcript.txt",
+            "[00:00:00] Lions are large cats [00:00:03] They live in groups [00:00:07] Cubs are born blind".encode(),
+        )
+        self.assertEqual(kind, "video")
+        self.assertEqual(cues, [
+            {"start": 0, "end": 3, "text": "Lions are large cats"},
+            {"start": 3, "end": 7, "text": "They live in groups"},
+            {"start": 7, "end": 12, "text": "Cubs are born blind"},
+        ])
+
     def test_pdf_and_pptx_extract_page_and_slide_metadata(self):
         from pypdf import PdfWriter
         from pptx import Presentation
