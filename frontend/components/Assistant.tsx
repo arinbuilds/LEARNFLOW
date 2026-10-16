@@ -186,14 +186,15 @@ export default function Assistant() {
     if (!newCourseTitle.trim() || loading || importing) return;
     setLoading(true);
     try {
-      const course = await api<Course>("v1/courses", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ title: newCourseTitle.trim() }) });
+      const course = await api<Course>("v1/courses", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ title: newCourseTitle.trim(), video_url: videoUrl || null }) });
       setCourses((items) => [...items, course]);
       setCourseId(course.id);
       await startSession(course.id);
       setNewCourseTitle("");
-      setVideoUrl(""); setVideoDraft(""); setVideoSeconds(0); setVideoDuration(2040); setCaptionStatus("");
+      setVideoUrl(course.video_url || ""); setVideoDraft(course.video_url || ""); setVideoSeconds(0); setVideoDuration(course.video_url ? 0 : 2040);
       window.localStorage.setItem("learnflow-course", course.id);
-      setNotice("Course created. Upload the matching VTT/SRT transcript and supporting materials below before asking questions.");
+      setCaptionStatus(course.video_url ? "Lesson created. Add its matching VTT/SRT transcript below to enable timestamp-aware questions." : "");
+      setNotice(course.video_url ? "Lesson created. Upload this video's VTT/SRT transcript below; timestamps will control which passages the guide can use." : "Course created. Add its supporting materials below before asking questions.");
     } catch (error) { setNotice(error instanceof Error ? error.message : "Could not create the course."); }
     finally { setLoading(false); }
   }
@@ -318,7 +319,7 @@ export default function Assistant() {
           <div className="resource-card">
             <div className="card-heading"><div><p className="eyebrow">COURSE LIBRARY</p><h3>Supporting materials</h3></div><span className="resource-tag">PDF · PPT · NOTES</span></div>
             <p className="muted">Add a PDF, presentation, transcript, or notes. Page and slide numbers stay attached to their citations.</p>
-            <form className="new-course-form" onSubmit={createCourse}><input aria-label="New course title" value={newCourseTitle} onChange={(event) => setNewCourseTitle(event.target.value)} placeholder="New lesson or course name" minLength={2} maxLength={160} required /><button className="button-secondary" disabled={loading || importing || newCourseTitle.trim().length < 2}>Create course</button></form>
+            <form className="new-course-form" onSubmit={createCourse}><input aria-label="New course title" value={newCourseTitle} onChange={(event) => setNewCourseTitle(event.target.value)} placeholder={videoUrl && !courseId ? "Name this video lesson to add its transcript" : "New lesson or course name"} minLength={2} maxLength={160} required /><button className="button-secondary" disabled={loading || importing || newCourseTitle.trim().length < 2}>{videoUrl && !courseId ? "Create lesson for this video" : "Create course"}</button></form>
             <form className="upload-row" onSubmit={uploadResource}><input type="file" accept=".pdf,.pptx,.vtt,.srt,.json,.txt,.md,.markdown" onChange={(event) => setFile(event.target.files?.[0] || null)} /><button className="button-secondary" disabled={!file || !courseId || loading || importing}>Add resource <span>↗</span></button></form>
           </div>
         </div>

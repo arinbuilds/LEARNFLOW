@@ -36,6 +36,7 @@ BASE_DIR = Path(__file__).resolve().parents[1]
 class CourseInput(BaseModel):
     title: str = Field(min_length=2, max_length=160)
     description: str = Field(default="", max_length=1000)
+    video_url: str | None = Field(default=None, max_length=2048)
 
 
 class YouTubeInput(BaseModel):
@@ -205,7 +206,14 @@ async def model_status():
 
 @app.post("/api/v1/courses", status_code=201)
 async def create_course(payload: CourseInput, store=Depends(ready_store)):
-    return await store.add_course(payload.title, payload.description)
+    video_url = None
+    if payload.video_url:
+        try:
+            video_id = video_id_from_url(payload.video_url)
+        except CaptionError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        video_url = f"https://www.youtube.com/watch?v={video_id}"
+    return await store.add_course(payload.title, payload.description, video_url)
 
 
 # Serialize imports to avoid repeated fetches for the same URL in one worker.
